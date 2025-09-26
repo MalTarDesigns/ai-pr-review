@@ -1,17 +1,25 @@
 {
   "name": "ai-pr-review",
   "version": "1.0.0",
+  "description": "Automated PR review system using OpenAI GPT for intelligent code analysis",
   "type": "commonjs",
+  "main": "dist/server.js",
   "scripts": {
-    "dev": "nodemon --watch src --exec ts-node src/server.ts",
+    "dev": "nodemon",
     "start": "ts-node src/server.ts",
     "build": "tsc",
-    "ai-review": "ts-node send-review.ts"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "ai-review": "ts-node send-review.ts",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist coverage",
+    "prestart": "npm run build",
+    "health-check": "curl -f http://localhost:3000/health || exit 1"
   },
-  "keywords": [],
+  "keywords": ["code-review", "ai", "openai", "gpt", "pull-request", "automation", "devops"],
   "author": "",
-  "license": "ISC",
-  "description": "",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.9.0",
     "cors": "^2.8.5",
@@ -23,8 +31,13 @@
   "devDependencies": {
     "@types/cors": "^2.8.18",
     "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.0",
     "@types/node": "^20.17.47",
+    "@types/supertest": "^2.0.12",
+    "jest": "^29.5.0",
     "nodemon": "^3.1.10",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
