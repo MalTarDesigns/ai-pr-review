@@ -1,0 +1,6 @@
+{
+    "watch": ["src", "send-review.ts", "post-to-azure.ts"],
+    "ext": "ts",
+    "exec": "ts-node src/server.ts"
+  }
+  
