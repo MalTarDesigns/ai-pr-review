@@ -1,0 +1,31 @@
+{
+  "name": "ai-pr-review",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon --watch src --exec ts-node src/server.ts",
+    "start": "ts-node src/server.ts",
+    "build": "tsc",
+    "ai-review": "ts-node send-review.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "openai": "^4.98.0",
+    "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.17.47",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
