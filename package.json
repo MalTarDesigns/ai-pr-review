@@ -17,10 +17,19 @@
     "prestart": "npm run build",
     "health-check": "curl -f http://localhost:3000/health || exit 1"
   },
-  "keywords": ["code-review", "ai", "openai", "gpt", "pull-request", "automation", "devops"],
+  "keywords": [
+    "code-review",
+    "ai",
+    "openai",
+    "gpt",
+    "pull-request",
+    "automation",
+    "devops"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
