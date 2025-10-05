@@ -7,16 +7,27 @@ jest.mock('openai', () => ({
     chat: {
       completions: {
         create: jest.fn().mockResolvedValue({
+          id: 'test-id',
+          model: 'gpt-3.5-turbo',
           choices: [{
             message: {
               content: '### Summary\nTest review content\n### Risks\nNo risks found\n### Suggestions\nCode looks good'
-            }
-          }]
+            },
+            finish_reason: 'stop'
+          }],
+          usage: {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150
+          }
         })
       }
     }
   }))
 }));
+
+// Mock Anthropic SDK
+jest.mock('@anthropic-ai/sdk');
 
 describe('AI Review API', () => {
   let app: express.Application;
@@ -24,6 +35,7 @@ describe('AI Review API', () => {
   beforeEach(() => {
     // Reset modules to ensure clean state
     jest.resetModules();
+    process.env.AI_PROVIDER = 'openai';
     process.env.OPENAI_API_KEY = 'test-key';
   });
 
@@ -113,7 +125,7 @@ describe('AI Review API', () => {
         });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe('AI review failed');
+      expect(response.body.error).toContain('AI review failed');
     });
   });
 });
