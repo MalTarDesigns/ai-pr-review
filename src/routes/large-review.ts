@@ -55,14 +55,16 @@ export interface LargeReviewResponse {
   };
 }
 
-export function createLargeReviewRouter(
+/**
+ * Create the large review handler function
+ */
+export function createLargeReviewHandler(
   primaryProvider: LLMProvider,
   fallbackProviders: LLMProvider[] = []
-): Router {
-  const router = Router();
+) {
   const config = loadLargeReviewConfig();
 
-  router.post('/', validateLargeReviewRequest, async (req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
     const startTime = Date.now();
 
     try {
@@ -79,9 +81,10 @@ export function createLargeReviewRouter(
 
       // Step 1: Parse diff into files
       const diffParser = new DiffParser();
+      console.log('[LargeReview] Parsing diff...');
       const parseResult = diffParser.parseToFiles(diff);
 
-      console.log(`[LargeReview] Parsed ${parseResult.files.length} files`);
+      console.log(`[LargeReview] Parsed ${parseResult.files.length} files successfully`);
 
       if (parseResult.files.length === 0) {
         return res.json({
@@ -99,10 +102,11 @@ export function createLargeReviewRouter(
       }
 
       // Step 2: Create optimized chunks
+      console.log('[LargeReview] Creating chunks...');
       const chunkOrchestrator = new ChunkOrchestrator(config.chunking);
       const chunks = chunkOrchestrator.createChunks(parseResult.files);
 
-      console.log(`[LargeReview] Created ${chunks.length} chunks`);
+      console.log(`[LargeReview] Created ${chunks.length} chunks successfully`);
 
       // Step 3: Execute parallel reviews with primary provider
       const providers = [primaryProvider, ...fallbackProviders];
@@ -111,6 +115,7 @@ export function createLargeReviewRouter(
 
       for (const provider of providers) {
         try {
+          console.log(`[LargeReview] Attempting execution with provider: ${provider.name}`);
           const reviewAgent = new ReviewAgent(provider);
           const parallelExecutor = new ParallelExecutor();
 
@@ -121,10 +126,11 @@ export function createLargeReviewRouter(
             );
           });
 
+          console.log(`[LargeReview] Starting parallel execution of ${chunks.length} chunks...`);
           executionResult = await parallelExecutor.executeWithFallback(chunks, reviewAgent);
           usedProvider = provider;
 
-          console.log(`[LargeReview] Execution completed with provider: ${provider.name}`);
+          console.log(`[LargeReview] Execution completed successfully with provider: ${provider.name}`);
           break;
         } catch (error) {
           console.error(`[LargeReview] Provider ${provider.name} failed:`, error);
@@ -201,7 +207,20 @@ export function createLargeReviewRouter(
         timestamp: new Date().toISOString(),
       });
     }
-  });
+  };
+}
+
+/**
+ * Create the large review router (for mounting as a route)
+ */
+export function createLargeReviewRouter(
+  primaryProvider: LLMProvider,
+  fallbackProviders: LLMProvider[] = []
+): Router {
+  const router = Router();
+  const handler = createLargeReviewHandler(primaryProvider, fallbackProviders);
+
+  router.post('/', validateLargeReviewRequest, handler);
 
   return router;
 }

@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { LLMProvider, LLMProviderFactory, ProviderError, RateLimitError } from './providers';
 import { loadAppConfig } from './config/provider-config';
-import { createLargeReviewRouter } from './routes/large-review';
+import { createLargeReviewRouter, createLargeReviewHandler } from './routes/large-review';
 import { smartRouter, ReviewRequest } from './middleware/smart-router';
 
 dotenv.config();
@@ -74,25 +74,35 @@ const validateReviewRequest = (req: express.Request, res: express.Response, next
   next();
 };
 
+// Initialize large review handler once at startup
+let largeReviewHandler: any = null;
+
+function getLargeReviewHandler() {
+  if (!largeReviewHandler && llmProvider) {
+    largeReviewHandler = createLargeReviewHandler(llmProvider, fallbackProviders);
+  }
+  return largeReviewHandler;
+}
+
 // Mount large review route
-app.use('/review/large', (req, res, next) => {
+app.post('/review/large', validateReviewRequest, (req, res) => {
   if (!llmProvider) {
     return res.status(503).json({ error: 'LLM provider not initialized' });
   }
-  const router = createLargeReviewRouter(llmProvider, fallbackProviders);
-  router(req, res, next);
+  const handler = getLargeReviewHandler();
+  return handler(req, res);
 });
 
 app.post('/review', validateReviewRequest, smartRouter, async (req: ReviewRequest, res) => {
   const { diff, author, branch, commitHash, commitMessage, files } = req.body;
 
   // If smart router determined this should use chunked or hierarchical strategy,
-  // redirect to large review endpoint
+  // forward to large review handler
   if (req.reviewStrategy === 'chunked' || req.reviewStrategy === 'hierarchical') {
     console.log(`[Review] Routing to large review endpoint (strategy: ${req.reviewStrategy})`);
 
-    const router = createLargeReviewRouter(llmProvider!, fallbackProviders);
-    return router(req, res, () => {});
+    const handler = getLargeReviewHandler();
+    return handler(req, res);
   }
 
   // Standard review for small diffs

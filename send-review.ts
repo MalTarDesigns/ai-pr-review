@@ -60,7 +60,7 @@ async function run() {
   try {
     const serverUrl = process.env.REVIEW_SERVER_URL || 'http://localhost:3000';
     const response = await axios.post<ReviewResponse>(`${serverUrl}/review`, payload, {
-      timeout: 60000, // 60 second timeout
+      timeout: 300000, // 5 minute timeout for large PRs
       headers: {
         'Content-Type': 'application/json'
       }
