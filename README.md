@@ -10,18 +10,20 @@ This tool automatically reviews Git diffs when pull requests are created, provid
 
 - **Node.js & TypeScript** - Type-safe backend development
 - **Express.js** - Lightweight API server
-- **OpenAI API** - GPT-3.5/GPT-4 for intelligent code analysis
+- **Multi-LLM Support** - OpenAI (GPT-3.5/GPT-4) and Anthropic Claude (Claude 3 family)
 - **Simple-git** - Git operations and diff extraction
 - **Azure DevOps API** - PR comment integration (optional)
 
 ## Features
 
-- Automatic diff analysis with configurable size limits
-- Risk assessment with severity levels (HIGH, MEDIUM, LOW)
-- Code quality suggestions and best practices
-- Support for large PRs with summary fallback
-- Azure DevOps integration for automated PR comments
-- Configurable AI models (GPT-3.5 or GPT-4)
+- **Multi-Provider Support** - Choose between OpenAI GPT or Anthropic Claude
+- **Automatic Fallback** - Seamless failover between providers for high availability
+- **Intelligent Review** - Automatic diff analysis with configurable size limits
+- **Risk Assessment** - Severity levels (HIGH, MEDIUM, LOW) for identified issues
+- **Best Practices** - Code quality suggestions and improvements
+- **Large PR Handling** - Summary fallback for oversized pull requests
+- **Azure DevOps Integration** - Automated PR comment posting
+- **Flexible Configuration** - Provider-specific settings via environment variables
 
 ## Setup
 
@@ -39,7 +41,8 @@ npm install
 3. Configure environment variables:
 ```bash
 cp .env.example .env
-# Edit .env with your OpenAI API key and other settings
+# Edit .env with your provider choice and API keys
+# Supports OpenAI, Claude, or both with automatic fallback
 ```
 
 4. Start the server:
@@ -133,7 +136,7 @@ curl -X POST http://localhost:3000/review \
 
 **Both methods require:**
 - Server running (`npm start`)
-- OpenAI API key in `.env`
+- At least one LLM provider configured (OpenAI or Claude API key in `.env`)
 - For terminal method: git repository with commits to review
 
 ### CI/CD Integration
@@ -154,6 +157,30 @@ Add to your pipeline:
 
 ## Configuration
 
+### Multi-Provider Setup
+
+Configure primary and fallback providers in `.env`:
+
+```bash
+# Choose your primary provider
+AI_PROVIDER=openai          # or 'claude'
+
+# Optional: Configure fallback providers for high availability
+FALLBACK_PROVIDERS=claude   # comma-separated list
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_key
+OPENAI_MODEL=gpt-3.5-turbo # or gpt-4, gpt-4-turbo, gpt-4o
+
+# Claude Configuration (optional)
+CLAUDE_API_KEY=your_key
+CLAUDE_MODEL=claude-3-sonnet-20240229 # or haiku, opus, 3.5-sonnet
+```
+
+**Provider Options:**
+- **OpenAI**: `gpt-3.5-turbo` (fast/economical), `gpt-4` (thorough), `gpt-4-turbo`, `gpt-4o`
+- **Claude**: `claude-3-haiku` (fast), `claude-3-sonnet` (balanced), `claude-3-opus` (powerful), `claude-3-5-sonnet` (latest)
+
 ### Review Limits
 
 The system automatically handles large diffs:
@@ -161,24 +188,52 @@ The system automatically handles large diffs:
 - Larger PRs receive a summary with improvement suggestions
 - Configurable via `MAX_DIFF_LENGTH` in server.ts
 
-### AI Model Selection
+### Advanced Configuration
 
-Choose between GPT models in `.env`:
-- `gpt-3.5-turbo` - Faster, cost-effective reviews
-- `gpt-4` - More thorough analysis for critical code
+Provider-specific settings (optional):
+```bash
+# Override defaults per provider
+OPENAI_MAX_TOKENS=1500
+OPENAI_TEMPERATURE=0.2
+CLAUDE_MAX_TOKENS=4096
+CLAUDE_TEMPERATURE=0.2
+
+# Global defaults (applied unless overridden)
+MAX_RETRIES=3
+TIMEOUT=30000
+```
 
 ## Architecture
 
 ```
 ai-pr-review/
 ├── src/
-│   └── server.ts        # Express API server
-├── send-review.ts       # CLI review script
-├── post-to-azure.ts     # Azure DevOps integration
-├── package.json         # Dependencies and scripts
-├── tsconfig.json        # TypeScript configuration
-└── .env.example         # Environment template
+│   ├── server.ts                    # Express API server
+│   ├── config/
+│   │   └── provider-config.ts      # Provider configuration
+│   └── providers/                   # Multi-LLM architecture
+│       ├── BaseLLMProvider.ts      # Abstract base class
+│       ├── LLMProviderFactory.ts   # Factory pattern
+│       ├── ClaudeProvider.ts       # Anthropic Claude
+│       ├── OpenAIProvider.ts       # OpenAI GPT
+│       └── types.ts                # Interfaces
+├── tests/                          # Comprehensive test suite
+│   ├── e2e/                       # End-to-end tests
+│   ├── integration/               # Integration tests
+│   └── providers/                 # Unit tests
+├── send-review.ts                 # CLI review script
+├── post-to-azure.ts              # Azure DevOps integration
+└── docs/                         # API documentation
 ```
+
+### Provider Architecture
+
+The system uses a **Factory Pattern** for LLM provider management:
+
+- **BaseLLMProvider** - Abstract base class with common functionality
+- **LLMProviderFactory** - Creates and manages provider instances with caching
+- **Provider Implementations** - OpenAI and Claude with standardized interfaces
+- **Automatic Fallback** - Seamless switching when primary provider fails or hits rate limits
 
 ## API Response Format
 
@@ -194,27 +249,32 @@ ai-pr-review/
 
 ## Development Challenges Solved
 
-- **Token Limits**: Implemented smart diff truncation to stay within API limits while maintaining review quality
+- **Multi-Provider Support**: Factory pattern enables switching between OpenAI and Claude without code changes
+- **High Availability**: Automatic fallback ensures reviews continue even if primary provider fails or hits rate limits
+- **Token Limits**: Smart diff truncation to stay within API limits while maintaining review quality
 - **Large PR Handling**: Graceful degradation for massive changes with helpful summary instead of incomplete reviews
-- **Pipeline Integration**: Designed to work seamlessly in CI/CD environments with proper exit codes
-- **Rate Limiting**: Built-in retry logic and error handling for API throttling
+- **Pipeline Integration**: CI/CD ready with proper exit codes and error handling
+- **Provider-Specific Config**: Flexible environment-based configuration for each LLM provider
 
 ## Lessons Learned
 
 Working on this project taught me the importance of:
-- Setting realistic boundaries for AI analysis (the 10K character limit)
-- Providing fallback behaviors for edge cases
-- Making tools pipeline-friendly from the start
-- Balancing review thoroughness with API costs
+- **Abstraction**: Factory pattern makes adding new LLM providers straightforward
+- **Resilience**: Fallback mechanisms ensure service continuity during provider outages
+- **Boundaries**: Setting realistic limits (10K character) prevents incomplete reviews
+- **Flexibility**: Provider-specific configuration allows optimization per use case
+- **Pipeline Integration**: Making tools CI/CD-friendly from the start saves headaches later
 
 ## Future Improvements
 
-- Add support for GitHub Actions and GitLab CI
-- Implement caching for similar code patterns
-- Add configuration for custom review prompts
-- Support for multiple programming languages with tailored analysis
-- Webhook support for automatic PR triggers
-- Review history and analytics dashboard
+- **Additional Providers**: Google Gemini, Azure OpenAI, local models (Ollama)
+- **CI/CD Expansion**: GitHub Actions, GitLab CI native integration
+- **Smart Caching**: Review caching for similar code patterns
+- **Custom Prompts**: Configurable review templates per project
+- **Language Support**: Tailored analysis for different programming languages
+- **Webhooks**: Automatic PR triggers without pipeline configuration
+- **Analytics**: Review history dashboard and insights
+- **Cost Optimization**: Smart provider selection based on diff complexity and cost
 
 ## Contributing
 
