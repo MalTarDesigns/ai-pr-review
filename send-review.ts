@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import axios from 'axios';
 import simpleGit from 'simple-git';
-import fs from 'fs';
+import { postCommentToAzure } from './post-to-azure';
 
 const git = simpleGit();
 
@@ -78,14 +78,10 @@ async function run() {
 
     console.log('\nReview:\n' + response.data.review);
 
-    // Save review to environment for Azure integration
-    const cleanReview = JSON.stringify(response.data.review).replace(/\n/g, '\\n').replace(/"/g, '\\"');
-    fs.appendFileSync('.env', `\nREVIEW_TEXT="${cleanReview}"\n`);
-
-    // Run Azure integration if configured
+    // Post to Azure DevOps if configured
     if (process.env.AZURE_PAT && process.env.AZURE_ORG) {
       console.log('\n📤 Posting to Azure DevOps...');
-      execSync('ts-node post-to-azure.ts');
+      await postCommentToAzure(response.data.review);
     }
   } catch (error) {
     if (axios.isAxiosError(error)) {

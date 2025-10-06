@@ -18,10 +18,10 @@ This tool automatically reviews Git diffs when pull requests are created, provid
 
 - **Multi-Provider Support** - Choose between OpenAI GPT or Anthropic Claude
 - **Automatic Fallback** - Seamless failover between providers for high availability
-- **Intelligent Review** - Automatic diff analysis with configurable size limits
-- **Risk Assessment** - Severity levels (HIGH, MEDIUM, LOW) for identified issues
+- **Agent-Based Large PR Review** - Handles PRs up to 5MB with intelligent chunking and parallel processing
+- **Smart Routing** - Automatically selects optimal strategy based on diff size (standard/chunked/hierarchical)
+- **Risk Assessment** - Severity levels (HIGH, MEDIUM, LOW) for identified issues with file categorization
 - **Best Practices** - Code quality suggestions and improvements
-- **Large PR Handling** - Summary fallback for oversized pull requests
 - **Azure DevOps Integration** - Automated PR comment posting
 - **Flexible Configuration** - Provider-specific settings via environment variables
 
@@ -54,9 +54,11 @@ npm start    # Production
 
 ## Usage
 
-### API Endpoint
+### API Endpoints
 
-Send a POST request to `/review` with the following payload:
+#### POST /review (Smart Routing)
+
+Automatically selects the optimal review strategy based on diff size:
 
 ```json
 {
@@ -68,6 +70,26 @@ Send a POST request to `/review` with the following payload:
   "files": ["src/file1.ts", "src/file2.ts"]
 }
 ```
+
+#### POST /review/large (Explicit Large PR Review)
+
+Force chunked/hierarchical review for large PRs (bypasses automatic routing):
+
+```json
+{
+  "diff": "large git diff content (up to 5MB)",
+  "author": "developer name",
+  "branch": "feature/major-refactor",
+  "commitHash": "abc123",
+  "commitMessage": "Large feature implementation",
+  "files": ["src/file1.ts", "src/file2.ts", ...]
+}
+```
+
+**Response includes:**
+- Detailed review with risk categorization
+- Statistics (chunks processed, files analyzed, tokens used)
+- Execution metadata (duration, providers used, success rate)
 
 ### Two Ways to Test
 
@@ -181,12 +203,28 @@ CLAUDE_MODEL=claude-3-sonnet-20240229 # or haiku, opus, 3.5-sonnet
 - **OpenAI**: `gpt-3.5-turbo` (fast/economical), `gpt-4` (thorough), `gpt-4-turbo`, `gpt-4o`
 - **Claude**: `claude-3-haiku` (fast), `claude-3-sonnet` (balanced), `claude-3-opus` (powerful), `claude-3-5-sonnet` (latest)
 
-### Review Limits
+### Review Strategies
 
-The system automatically handles large diffs:
-- Reviews up to 10,000 characters line-by-line
-- Larger PRs receive a summary with improvement suggestions
-- Configurable via `MAX_DIFF_LENGTH` in server.ts
+The system automatically selects the optimal review strategy based on diff size:
+
+**Standard Review (≤ 10KB)**
+- Single-shot comprehensive analysis
+- Fast response (~2-5 seconds)
+- Best for focused PRs and small changes
+
+**Chunked Review (10KB - 100KB)**
+- Intelligent file grouping by risk level (HIGH/MEDIUM/LOW)
+- Parallel agent execution (up to 3 concurrent)
+- Detailed file-level feedback with cross-file awareness
+- Response time: ~30-60 seconds
+
+**Hierarchical Review (> 100KB up to 5MB)**
+- Advanced chunking with priority-based processing
+- Risk categorization and complexity scoring
+- Deduplication and aggregation of findings
+- Response time: 1-5 minutes
+
+All strategies support automatic provider fallback and retry logic.
 
 ### Advanced Configuration
 
@@ -203,20 +241,63 @@ MAX_RETRIES=3
 TIMEOUT=30000
 ```
 
+### Large PR Review Configuration
+
+Control chunking and agent behavior in `config/large-review.config.ts`:
+
+```typescript
+export const LargeReviewConfig = {
+  chunking: {
+    maxChunkSize: 8000,              // Characters per chunk
+    maxFilesPerChunk: 10,            // Files per chunk
+    prioritizeHighRisk: true,        // Review high-risk files first
+  },
+  execution: {
+    maxConcurrentAgents: 3,          // Parallel agent limit
+    agentTimeout: 30000,             // 30s per agent
+    retryAttempts: 2,                // Retry failed chunks
+    fallbackToSummary: true,         // Fallback on agent failure
+  },
+  models: {
+    maxTokensPerChunk: 1500,         // Token limit per chunk
+  }
+};
+```
+
+**Environment Variables:**
+- All config values can be overridden via environment variables
+- Automatic loading from `.env` file
+- See `config/large-review.config.ts` for full options
+
 ## Architecture
 
 ```
 ai-pr-review/
+├── config/
+│   └── large-review.config.ts      # Large PR configuration
 ├── src/
 │   ├── server.ts                    # Express API server
 │   ├── config/
 │   │   └── provider-config.ts      # Provider configuration
-│   └── providers/                   # Multi-LLM architecture
-│       ├── BaseLLMProvider.ts      # Abstract base class
-│       ├── LLMProviderFactory.ts   # Factory pattern
-│       ├── ClaudeProvider.ts       # Anthropic Claude
-│       ├── OpenAIProvider.ts       # OpenAI GPT
-│       └── types.ts                # Interfaces
+│   ├── providers/                   # Multi-LLM architecture
+│   │   ├── BaseLLMProvider.ts      # Abstract base class
+│   │   ├── LLMProviderFactory.ts   # Factory pattern
+│   │   ├── ClaudeProvider.ts       # Anthropic Claude
+│   │   ├── OpenAIProvider.ts       # OpenAI GPT
+│   │   └── types.ts                # Interfaces
+│   ├── chunking/                    # Large PR chunking system
+│   │   ├── diff-parser.ts          # Parse diffs to files
+│   │   └── chunk-orchestrator.ts   # Intelligent chunking
+│   ├── agents/                      # Agent-based review
+│   │   ├── review-agent.ts         # LLM review agent
+│   │   └── parallel-executor.ts    # Parallel execution
+│   ├── aggregation/                 # Result synthesis
+│   │   ├── result-aggregator.ts    # Merge & deduplicate
+│   │   └── review-synthesizer.ts   # Final output formatting
+│   ├── middleware/
+│   │   └── smart-router.ts         # Auto strategy selection
+│   └── routes/
+│       └── large-review.ts         # Large PR endpoint
 ├── tests/                          # Comprehensive test suite
 │   ├── e2e/                       # End-to-end tests
 │   ├── integration/               # Integration tests
@@ -251,9 +332,11 @@ The system uses a **Factory Pattern** for LLM provider management:
 
 - **Multi-Provider Support**: Factory pattern enables switching between OpenAI and Claude without code changes
 - **High Availability**: Automatic fallback ensures reviews continue even if primary provider fails or hits rate limits
-- **Token Limits**: Smart diff truncation to stay within API limits while maintaining review quality
-- **Large PR Handling**: Graceful degradation for massive changes with helpful summary instead of incomplete reviews
-- **Pipeline Integration**: CI/CD ready with proper exit codes and error handling
+- **Agent-Based Chunking**: Parallel processing with intelligent file grouping handles PRs up to 5MB while maintaining detailed feedback
+- **Smart Routing**: Automatic strategy selection based on diff size optimizes cost and quality
+- **Token Optimization**: Intelligent chunking and deduplication minimize token usage while preserving review quality
+- **Cross-File Awareness**: Aggregation layer identifies dependencies and patterns across file boundaries
+- **Pipeline Integration**: CI/CD ready with proper exit codes, timeouts, and error handling
 - **Provider-Specific Config**: Flexible environment-based configuration for each LLM provider
 
 ## Lessons Learned
