@@ -9,7 +9,6 @@ interface AzureConfig {
   project: string;
   repoId: string;
   pullRequestId: string;
-  reviewText: string;
 }
 
 function validateAzureConfig(): AzureConfig {
@@ -34,12 +33,11 @@ function validateAzureConfig(): AzureConfig {
     org: requiredFields.org!,
     project: requiredFields.project!,
     repoId: requiredFields.repoId!,
-    pullRequestId: requiredFields.pullRequestId!,
-    reviewText: process.env.REVIEW_TEXT || 'No review text found.'
+    pullRequestId: requiredFields.pullRequestId!
   };
 }
 
-async function postComment() {
+export async function postCommentToAzure(reviewText: string): Promise<void> {
   try {
     const config = validateAzureConfig();
     const url = `https://dev.azure.com/${config.org}/${config.project}/_apis/git/repositories/${config.repoId}/pullRequests/${config.pullRequestId}/threads?api-version=7.1-preview.1`;
@@ -49,7 +47,7 @@ async function postComment() {
       comments: [
         {
           parentCommentId: 0,
-          content: `## 🤖 AI Code Review\n\n${config.reviewText}`,
+          content: `## 🤖 AI Code Review\n\n${reviewText}`,
           commentType: 1
         }
       ],
@@ -66,10 +64,15 @@ async function postComment() {
       }
     });
 
-    console.log('Posted review to PR:', response.data.id);
+    console.log('✅ Posted review to PR:', response.data.id);
   } catch (err: any) {
-    console.error('Failed to post comment to Azure PR:', err.response?.data || err.message);
+    console.error('❌ Failed to post comment to Azure PR:', err.response?.data || err.message);
+    throw err;
   }
 }
 
-postComment();
+// CLI support: allow running directly with REVIEW_TEXT env var
+if (require.main === module) {
+  const reviewText = process.env.REVIEW_TEXT || 'No review text found.';
+  postCommentToAzure(reviewText);
+}

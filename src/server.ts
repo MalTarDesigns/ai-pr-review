@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { LLMProvider, LLMProviderFactory, ProviderError, RateLimitError } from './providers';
 import { loadAppConfig } from './config/provider-config';
+import { createLargeReviewRouter, createLargeReviewHandler } from './routes/large-review';
+import { smartRouter, ReviewRequest } from './middleware/smart-router';
 
 dotenv.config();
 const app = express();
@@ -72,9 +74,38 @@ const validateReviewRequest = (req: express.Request, res: express.Response, next
   next();
 };
 
-app.post('/review', validateReviewRequest, async (req, res) => {
+// Initialize large review handler once at startup
+let largeReviewHandler: any = null;
+
+function getLargeReviewHandler() {
+  if (!largeReviewHandler && llmProvider) {
+    largeReviewHandler = createLargeReviewHandler(llmProvider, fallbackProviders);
+  }
+  return largeReviewHandler;
+}
+
+// Mount large review route
+app.post('/review/large', validateReviewRequest, (req, res) => {
+  if (!llmProvider) {
+    return res.status(503).json({ error: 'LLM provider not initialized' });
+  }
+  const handler = getLargeReviewHandler();
+  return handler(req, res);
+});
+
+app.post('/review', validateReviewRequest, smartRouter, async (req: ReviewRequest, res) => {
   const { diff, author, branch, commitHash, commitMessage, files } = req.body;
 
+  // If smart router determined this should use chunked or hierarchical strategy,
+  // forward to large review handler
+  if (req.reviewStrategy === 'chunked' || req.reviewStrategy === 'hierarchical') {
+    console.log(`[Review] Routing to large review endpoint (strategy: ${req.reviewStrategy})`);
+
+    const handler = getLargeReviewHandler();
+    return handler(req, res);
+  }
+
+  // Standard review for small diffs
   const MAX_DIFF_LENGTH = 10000;
   if (diff.length > MAX_DIFF_LENGTH) {
     const review = `## 🤖 AI Code Review Summary\n\n⚠️ This PR is too large (${
@@ -231,11 +262,18 @@ app.get('/health', (req, res) => {
 app.get('/api', (req, res) => {
   res.json({
     name: 'AI Pull Request Review API',
-    version: '1.0.0',
+    version: '2.0.0',
     endpoints: {
-      'POST /review': 'Submit code diff for AI review',
+      'POST /review': 'Submit code diff for AI review (auto-routes to appropriate strategy)',
+      'POST /review/large': 'Submit large PR for chunked agent-based review',
       'GET /health': 'Health check and system status',
       'GET /api': 'API information'
+    },
+    features: {
+      'Smart Routing': 'Automatically selects optimal review strategy based on diff size',
+      'Chunked Review': 'Handles large PRs up to 5MB with parallel agent execution',
+      'Risk Analysis': 'Identifies high-risk code changes (security, auth, database)',
+      'Multi-Provider': 'Automatic fallback between Claude and OpenAI providers'
     },
     documentation: 'https://github.com/MalTarDesigns/ai-pr-review'
   });
