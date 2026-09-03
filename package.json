@@ -1,7 +1,7 @@
 {
   "name": "ai-pr-review",
   "version": "1.0.0",
-  "description": "Automated PR review system using OpenAI GPT for intelligent code analysis",
+  "description": "Automated PR review system using Anthropic Claude or OpenAI GPT for intelligent code analysis",
   "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {

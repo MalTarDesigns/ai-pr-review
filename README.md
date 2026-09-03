@@ -1,6 +1,6 @@
 # AI Pull Request Review System
 
-An automated code review service that uses OpenAI's GPT models to analyze pull requests and provide intelligent feedback on code changes.
+An automated code review service that uses large language models (Anthropic Claude or OpenAI GPT) to analyze pull requests and provide intelligent feedback on code changes.
 
 ## What It Does
 
@@ -29,7 +29,7 @@ This tool automatically reviews Git diffs when pull requests are created, provid
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ai-pr-review.git
+git clone https://github.com/MalTarDesigns/ai-pr-review.git
 cd ai-pr-review
 ```
 
