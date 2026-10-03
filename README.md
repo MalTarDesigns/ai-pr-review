@@ -1,5 +1,7 @@
 # AI Pull Request Review System
 
+> **Status: archived.** I built this in September 2025 as a self-hosted reviewer: an Express service that splits large diffs into chunks, reviews them with Claude or GPT, and posts the results to Azure DevOps. My own GitHub repos now use Anthropic's [Claude Code Action](https://github.com/anthropics/claude-code-action), rolled out through a shared reusable workflow, because it runs natively in GitHub with no service to host. The code stays here as a reference and is no longer maintained.
+
 An automated code review service that uses large language models (Anthropic Claude or OpenAI GPT) to analyze pull requests and provide intelligent feedback on code changes.
 
 ## What It Does
